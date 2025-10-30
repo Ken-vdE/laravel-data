@@ -2851,6 +2851,13 @@ describe('property-morphable validation tests', function () {
 });
 
 it('can access the validator if desired', function () {
+    class CustomCreationContext extends CreationContext
+    {
+        public ?Validator $validator = null;
+    }
+
+    $this->app->bind(CreationContext::class, CustomCreationContext::class);
+
     class DataWithValidator extends Data
     {
         protected ?Validator $validator = null;
@@ -2867,24 +2874,23 @@ it('can access the validator if desired', function () {
 
         public static function withValidator(Validator $validator, ?CreationContext $context = null): void
         {
-            if ($context) {
+            if ($context instanceof CustomCreationContext) {
                 $context->validator = $validator;
             }
         }
 
         public static function makeWithContext(CreationContext $context, ...$properties): static
         {
-            $data = new static(...$context->validator->validated());
-            $data->validator = $context->validator;
+            if ($context instanceof CustomCreationContext) {
+                $data = new static(...$context->validator->validated());
+                $data->validator = $context->validator;
 
-            return $data;
+                return $data;
+            }
+
+            return new static(...$properties);
         }
     };
-
-    $this->app->bind(CreationContext::class, fn ($app, $params) => new class (...$params) extends CreationContext {
-        public ?Validator $validator = null;
-    });
-
     $request = Request::create('hello', 'POST', ['property' => 'foo', 'unvalidated' => 'bar']);
     $data = DataWithValidator::from($request);
     expect($data->validator())->toBeInstanceOf(Validator::class);
